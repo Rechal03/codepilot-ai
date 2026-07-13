@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.services.chat import answer_question, find_bugs
+from app.services.chat import answer_question, find_bugs, generate_documentation
 router = APIRouter()
 
 
@@ -22,3 +22,7 @@ async def chat(request: ChatRequest):
 async def review(request: ReviewRequest):
     result = find_bugs(request.file_path_filter)
     return result
+@router.post("/generate-docs")
+async def generate_docs():
+    documentation = generate_documentation()
+    return {"documentation": documentation}

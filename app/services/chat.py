@@ -97,3 +97,32 @@ Review:"""
         "files_reviewed": [chunk["path"] for chunk in relevant_chunks],
         "review": result["response"]
     }
+def generate_documentation():
+    with open(METADATA_PATH, "rb") as f:
+        metadata = pickle.load(f)
+
+    context_text = "\n\n".join(
+        [f"File: {chunk['path']}\n{chunk['chunk']}" for chunk in metadata]
+    )
+
+    prompt = f"""You are a technical writer creating documentation for a software project.
+Based on the code below, generate a clear README.md style document including:
+- Project overview
+- Key features
+- Technologies used
+- Folder structure
+- How the main components work together
+
+Code:
+{context_text}
+
+Documentation:"""
+
+    response = requests.post(OLLAMA_URL, json={
+        "model": "llama3",
+        "prompt": prompt,
+        "stream": False
+    })
+
+    result = response.json()
+    return result["response"]
