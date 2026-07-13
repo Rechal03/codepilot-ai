@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CodePilot AI</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 40px auto;
+        padding: 0 20px;
+        background: #f5f5f5;
+    }
+    h1 {
+        color: #1a1a1a;
+    }
+    .card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    input[type="file"] {
+        margin-bottom: 10px;
+    }
+    button {
+        background: #2563eb;
+        color: white;
+        border: none;
+        padding: 10px 18px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    button:disabled {
+        background: #93c5fd;
+        cursor: not-allowed;
+    }
+    #uploadStatus, #chatStatus {
+        margin-top: 10px;
+        font-size: 14px;
+        color: #444;
+    }
+    #chatBox {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 15px;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .msg {
+        padding: 10px 14px;
+        border-radius: 8px;
+        max-width: 90%;
+    }
+    .user {
+        background: #2563eb;
+        color: white;
+        align-self: flex-end;
+    }
+    .assistant {
+        background: #e5e7eb;
+        color: #111;
+        align-self: flex-start;
+        white-space: pre-wrap;
+    }
+    .sources {
+        font-size: 12px;
+        color: #666;
+        margin-top: 4px;
+    }
+    #questionInput {
+        width: 75%;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+    }
+</style>
+</head>
+<body>
+
+<h1>🤖 CodePilot AI</h1>
+<p>Upload a zipped codebase, then ask questions about it.</p>
+
+<div class="card">
+    <h3>1. Upload Repository</h3>
+    <input type="file" id="fileInput" accept=".zip">
+    <br>
+    <button onclick="uploadFile()" id="uploadBtn">Upload & Index</button>
+    <div id="uploadStatus"></div>
+</div>
+
+<div class="card">
+    <h3>2. Chat with your code</h3>
+    <div id="chatBox"></div>
+    <input type="text" id="questionInput" placeholder="Ask something about the code...">
+    <button onclick="sendQuestion()" id="chatBtn">Send</button>
+    <div id="chatStatus"></div>
+</div>
+
+<script>
+    const API_BASE = "http://127.0.0.1:8000";
+    let history = [];
+
+    async function uploadFile() {
+        const fileInput = document.getElementById("fileInput");
+        const status = document.getElementById("uploadStatus");
+        const btn = document.getElementById("uploadBtn");
+
+        if (!fileInput.files.length) {
+            status.textContent = "Please choose a .zip file first.";
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", fileInput.files[0]);
+
+        btn.disabled = true;
+        status.textContent = "Uploading and indexing... this may take a moment.";
+
+        try {
+            const response = await fetch(`${API_BASE}/upload`, {
+                method: "POST",
+                body: formData
+            });
+            const data = await response.json();
+
+            status.textContent = `Done! ${data.total_files} files found, ${data.total_chunks} chunks indexed.`;
+        } catch (err) {
+            status.textContent = "Error uploading file: " + err.message;
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function sendQuestion() {
+        const input = document.getElementById("questionInput");
+        const chatBox = document.getElementById("chatBox");
+        const status = document.getElementById("chatStatus");
+        const btn = document.getElementById("chatBtn");
+
+        const question = input.value.trim();
+        if (!question) return;
+
+        addMessage("user", question);
+        input.value = "";
+        btn.disabled = true;
+        status.textContent = "Thinking...";
+
+        try {
+            const response = await fetch(`${API_BASE}/chat`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question: question, history: history })
+            });
+            const data = await response.json();
+
+            addMessage("assistant", data.answer, data.sources);
+
+            history.push({ question: data.question, answer: data.answer });
+        } catch (err) {
+            status.textContent = "Error: " + err.message;
+        } finally {
+            status.textContent = "";
+            btn.disabled = false;
+        }
+    }
+
+    function addMessage(role, text, sources) {
+        const chatBox = document.getElementById("chatBox");
+        const div = document.createElement("div");
+        div.className = "msg " + role;
+        div.textContent = text;
+
+        if (sources && sources.length) {
+            const srcDiv = document.createElement("div");
+            srcDiv.className = "sources";
+            srcDiv.textContent = "Sources: " + [...new Set(sources)].join(", ");
+            div.appendChild(document.createElement("br"));
+            div.appendChild(srcDiv);
+        }
+
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    document.getElementById("questionInput").addEventListener("keydown", function(e) {
+        if (e.key === "Enter") sendQuestion();
+    });
+</script>
+
+</body>
+</html>
