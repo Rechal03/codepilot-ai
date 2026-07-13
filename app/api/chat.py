@@ -6,6 +6,7 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     question: str
+    history: list = []
 
 class ReviewRequest(BaseModel):
     file_path_filter: str = None
@@ -13,7 +14,7 @@ class ReviewRequest(BaseModel):
     
 @router.post("/chat")
 async def chat(request: ChatRequest):
-    result = answer_question(request.question)
+    result = answer_question(request.question, request.history)
     return result
 
 

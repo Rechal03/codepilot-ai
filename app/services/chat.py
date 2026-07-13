@@ -51,15 +51,48 @@ Answer:"""
     return result["response"]
 
 
-def answer_question(question):
+def answer_question(question, history=None):
+    if history is None:
+        history = []
+
     chunks = search_similar_chunks(question)
-    answer = ask_ollama(question, chunks)
+
+    history_text = ""
+    for turn in history:
+        history_text += f"User: {turn['question']}\nAssistant: {turn['answer']}\n\n"
+
+    context_text = "\n\n".join(
+        [f"File: {chunk['path']}\n{chunk['chunk']}" for chunk in chunks]
+    )
+
+    prompt = f"""You are an expert software engineer helping explain a codebase.
+Only answer using the code context below. If the answer isn't in the context, say "I don't know based on the provided code."
+
+Previous conversation:
+{history_text}
+
+Code context:
+{context_text}
+
+New question: {question}
+
+Answer:"""
+
+    response = requests.post(OLLAMA_URL, json={
+        "model": "llama3",
+        "prompt": prompt,
+        "stream": False
+    })
+
+    result = response.json()
 
     return {
         "question": question,
-        "answer": answer,
+        "answer": result["response"],
         "sources": [chunk["path"] for chunk in chunks]
     }
+
+
 def find_bugs(file_path_filter=None, top_k=5):
     index = faiss.read_index(INDEX_PATH)
 
@@ -97,6 +130,8 @@ Review:"""
         "files_reviewed": [chunk["path"] for chunk in relevant_chunks],
         "review": result["response"]
     }
+
+
 def generate_documentation():
     with open(METADATA_PATH, "rb") as f:
         metadata = pickle.load(f)
