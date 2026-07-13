@@ -60,3 +60,40 @@ def answer_question(question):
         "answer": answer,
         "sources": [chunk["path"] for chunk in chunks]
     }
+def find_bugs(file_path_filter=None, top_k=5):
+    index = faiss.read_index(INDEX_PATH)
+
+    with open(METADATA_PATH, "rb") as f:
+        metadata = pickle.load(f)
+
+    if file_path_filter:
+        relevant_chunks = [m for m in metadata if file_path_filter in m["path"]]
+    else:
+        relevant_chunks = metadata[:top_k]
+
+    context_text = "\n\n".join(
+        [f"File: {chunk['path']}\n{chunk['chunk']}" for chunk in relevant_chunks]
+    )
+
+    prompt = f"""You are a senior software engineer performing a code review.
+Analyze the following code and identify potential bugs, security issues, or bad practices.
+For each issue found, specify: the file, the problem, and a suggested fix.
+If no issues are found, say so clearly.
+
+Code:
+{context_text}
+
+Review:"""
+
+    response = requests.post(OLLAMA_URL, json={
+        "model": "llama3",
+        "prompt": prompt,
+        "stream": False
+    })
+
+    result = response.json()
+
+    return {
+        "files_reviewed": [chunk["path"] for chunk in relevant_chunks],
+        "review": result["response"]
+    }
